@@ -2455,7 +2455,8 @@ $(VCSSVN_LIB): $(VCSSVN_OBJS)
 
 export DEFAULT_EDITOR DEFAULT_PAGER
 
-Documentation/GIT-EXCLUDED-PROGRAMS: Makefile config.mak.uname
+Documentation/GIT-EXCLUDED-PROGRAMS: Makefile config.mak.uname \
+	$(wildcard config.mak.autogen) $(wildcard config.mak)
 	$(QUIET_GEN)echo "EXCLUDED_PROGRAMS := $(EXCLUDED_PROGRAMS)" >$@
 
 .PHONY: doc man man-perl html info pdf
