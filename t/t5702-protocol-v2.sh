@@ -288,8 +288,8 @@ test_expect_success 'warn if using server-option with clone with legacy protocol
 		clone --server-option=hello --server-option=world \
 		"file://$(pwd)/file_parent" myclone 2>err &&
 
-	grep "see protocol.version in" err &&
-	grep "server options require protocol version 2 or later" err
+	test_i18ngrep "see protocol.version in" err &&
+	test_i18ngrep "server options require protocol version 2 or later" err
 '
 
 test_expect_success 'upload-pack respects config using protocol v2' '
