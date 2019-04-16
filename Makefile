@@ -592,6 +592,7 @@ FUZZ_PROGRAMS =
 LIB_OBJS =
 PROGRAM_OBJS =
 PROGRAMS =
+EXCLUDED_PROGRAMS =
 SCRIPT_PERL =
 SCRIPT_PYTHON =
 SCRIPT_SH =
@@ -614,7 +615,6 @@ SCRIPT_SH += git-merge-resolve.sh
 SCRIPT_SH += git-mergetool.sh
 SCRIPT_SH += git-quiltimport.sh
 SCRIPT_SH += git-legacy-stash.sh
-SCRIPT_SH += git-remote-testgit.sh
 SCRIPT_SH += git-request-pull.sh
 SCRIPT_SH += git-submodule.sh
 SCRIPT_SH += git-web--browse.sh
@@ -636,8 +636,6 @@ SCRIPT_PERL += git-send-email.perl
 SCRIPT_PERL += git-svn.perl
 
 SCRIPT_PYTHON += git-p4.py
-
-NO_INSTALL += git-remote-testgit
 
 # Generated files for scripts
 SCRIPT_SH_GEN = $(patsubst %.sh,%,$(SCRIPT_SH))
@@ -1344,6 +1342,7 @@ ifdef NO_CURL
 	REMOTE_CURL_PRIMARY =
 	REMOTE_CURL_ALIASES =
 	REMOTE_CURL_NAMES =
+	EXCLUDED_PROGRAMS += git-http-fetch git-http-push
 else
 	ifdef CURLDIR
 		# Try "-Wl,-rpath=$(CURLDIR)/$(lib)" in such a case.
@@ -1368,7 +1367,11 @@ endif
 	ifeq "$(curl_check)" "070908"
 		ifndef NO_EXPAT
 			PROGRAM_OBJS += http-push.o
+		else
+			EXCLUDED_PROGRAMS += git-http-push
 		endif
+	else
+		EXCLUDED_PROGRAMS += git-http-push
 	endif
 	curl_check := $(shell (echo 072200; $(CURL_CONFIG) --vernum | sed -e '/^70[BC]/s/^/0/') 2>/dev/null | sort -r | sed -ne 2p)
 	ifeq "$(curl_check)" "072200"
@@ -1616,6 +1619,7 @@ ifdef NO_INET_PTON
 endif
 ifdef NO_UNIX_SOCKETS
 	BASIC_CFLAGS += -DNO_UNIX_SOCKETS
+	EXCLUDED_PROGRAMS += git-credential-cache git-credential-cache--daemon
 else
 	LIB_OBJS += unix-socket.o
 	PROGRAM_OBJS += credential-cache.o
@@ -2135,7 +2139,9 @@ $(BUILT_INS): git$X
 command-list.h: generate-cmdlist.sh command-list.txt
 
 command-list.h: $(wildcard Documentation/git*.txt) Documentation/*config.txt Documentation/config/*.txt
-	$(QUIET_GEN)$(SHELL_PATH) ./generate-cmdlist.sh command-list.txt >$@+ && mv $@+ $@
+	$(QUIET_GEN)$(SHELL_PATH) ./generate-cmdlist.sh \
+		$(patsubst %,--exclude-program %,$(EXCLUDED_PROGRAMS)) \
+		command-list.txt >$@+ && mv $@+ $@
 
 SCRIPT_DEFINES = $(SHELL_PATH_SQ):$(DIFF_SQ):$(GIT_VERSION):\
 	$(localedir_SQ):$(NO_CURL):$(USE_GETTEXT_SCHEME):$(SANE_TOOL_PATH_SQ):\
@@ -2468,22 +2474,26 @@ $(VCSSVN_LIB): $(VCSSVN_OBJS)
 
 export DEFAULT_EDITOR DEFAULT_PAGER
 
+Documentation/GIT-EXCLUDED-PROGRAMS: Makefile config.mak.uname \
+	$(wildcard config.mak.autogen) $(wildcard config.mak)
+	$(QUIET_GEN)echo "EXCLUDED_PROGRAMS := $(EXCLUDED_PROGRAMS)" >$@
+
 .PHONY: doc man man-perl html info pdf
-doc: man-perl
+doc: man-perl Documentation/GIT-EXCLUDED-PROGRAMS
 	$(MAKE) -C Documentation all
 
-man: man-perl
+man: man-perl Documentation/GIT-EXCLUDED-PROGRAMS
 	$(MAKE) -C Documentation man
 
 man-perl: perl/build/man/man3/Git.3pm
 
-html:
+html: Documentation/GIT-EXCLUDED-PROGRAMS
 	$(MAKE) -C Documentation html
 
-info:
+info: Documentation/GIT-EXCLUDED-PROGRAMS
 	$(MAKE) -C Documentation info
 
-pdf:
+pdf: Documentation/GIT-EXCLUDED-PROGRAMS
 	$(MAKE) -C Documentation pdf
 
 XGETTEXT_FLAGS = \
@@ -2923,33 +2933,33 @@ endif
 install-gitweb:
 	$(MAKE) -C gitweb install
 
-install-doc: install-man-perl
+install-doc: install-man-perl Documentation/GIT-EXCLUDED-PROGRAMS
 	$(MAKE) -C Documentation install
 
-install-man: install-man-perl
+install-man: install-man-perl Documentation/GIT-EXCLUDED-PROGRAMS
 	$(MAKE) -C Documentation install-man
 
-install-man-perl: man-perl
+install-man-perl: man-perl Documentation/GIT-EXCLUDED-PROGRAMS
 	$(INSTALL) -d -m 755 '$(DESTDIR_SQ)$(mandir_SQ)/man3'
 	(cd perl/build/man/man3 && $(TAR) cf - .) | \
 	(cd '$(DESTDIR_SQ)$(mandir_SQ)/man3' && umask 022 && $(TAR) xof -)
 
-install-html:
+install-html: Documentation/GIT-EXCLUDED-PROGRAMS
 	$(MAKE) -C Documentation install-html
 
-install-info:
+install-info: Documentation/GIT-EXCLUDED-PROGRAMS
 	$(MAKE) -C Documentation install-info
 
-install-pdf:
+install-pdf: Documentation/GIT-EXCLUDED-PROGRAMS
 	$(MAKE) -C Documentation install-pdf
 
-quick-install-doc:
+quick-install-doc: Documentation/GIT-EXCLUDED-PROGRAMS
 	$(MAKE) -C Documentation quick-install
 
-quick-install-man:
+quick-install-man: Documentation/GIT-EXCLUDED-PROGRAMS
 	$(MAKE) -C Documentation quick-install-man
 
-quick-install-html:
+quick-install-html: Documentation/GIT-EXCLUDED-PROGRAMS
 	$(MAKE) -C Documentation quick-install-html
 
 
@@ -3004,7 +3014,7 @@ artifacts-tar:: $(ALL_PROGRAMS) $(SCRIPT_LIB) $(BUILT_INS) $(OTHER_PROGRAMS) \
 htmldocs = git-htmldocs-$(GIT_VERSION)
 manpages = git-manpages-$(GIT_VERSION)
 .PHONY: dist-doc distclean
-dist-doc:
+dist-doc: Documentation/GIT-EXCLUDED-PROGRAMS
 	$(RM) -r .doc-tmp-dir
 	mkdir .doc-tmp-dir
 	$(MAKE) -C Documentation WEBDOC_DEST=../.doc-tmp-dir install-webdoc
@@ -3051,6 +3061,7 @@ clean: profile-clean coverage-clean cocciclean
 	$(RM) $(GIT_TARNAME).tar.gz git-core_$(GIT_VERSION)-*.tar.gz
 	$(RM) $(htmldocs).tar.gz $(manpages).tar.gz
 	$(MAKE) -C Documentation/ clean
+	$(RM) Documentation/GIT-EXCLUDED-PROGRAMS
 ifndef NO_PERL
 	$(MAKE) -C gitweb clean
 	$(RM) -r perl/build/
@@ -3078,7 +3089,7 @@ ALL_COMMANDS += gitweb
 ALL_COMMANDS += git-gui git-citool
 
 .PHONY: check-docs
-check-docs::
+check-docs:: Documentation/GIT-EXCLUDED-PROGRAMS
 	$(MAKE) -C Documentation lint-docs
 	@(for v in $(patsubst %$X,%,$(ALL_COMMANDS)); \
 	do \
@@ -3086,7 +3097,7 @@ check-docs::
 		git-merge-octopus | git-merge-ours | git-merge-recursive | \
 		git-merge-resolve | git-merge-subtree | \
 		git-fsck-objects | git-init-db | \
-		git-remote-* | git-stage | \
+		git-remote-* | git-stage | git-legacy-* | \
 		git-?*--?* ) continue ;; \
 		esac ; \
 		test -f "Documentation/$$v.txt" || \
@@ -3101,6 +3112,7 @@ check-docs::
 	( \
 		sed -e '1,/^### command list/d' \
 		    -e '/^#/d' \
+		    $(patsubst %,-e '/^% /d',$(EXCLUDED_PROGRAMS)) \
 		    -e '/guide$$/d' \
 		    -e 's/[ 	].*//' \
 		    -e 's/^/listed /' command-list.txt; \
